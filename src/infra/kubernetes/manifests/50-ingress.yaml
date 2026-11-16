@@ -1,0 +1,237 @@
+apiVersion: "v1"
+kind: "ServiceAccount"
+metadata:
+  name: "traefik"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+  namespace: "labreserve"
+---
+apiVersion: "rbac.authorization.k8s.io/v1"
+kind: "Role"
+metadata:
+  name: "traefik"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+  namespace: "labreserve"
+rules:
+  -
+    apiGroups:
+      - ""
+    resources:
+      - "services"
+      - "endpoints"
+      - "secrets"
+    verbs:
+      - "get"
+      - "list"
+      - "watch"
+  -
+    apiGroups:
+      - "discovery.k8s.io"
+    resources:
+      - "endpointslices"
+    verbs:
+      - "get"
+      - "list"
+      - "watch"
+  -
+    apiGroups:
+      - "networking.k8s.io"
+    resources:
+      - "ingresses"
+    verbs:
+      - "get"
+      - "list"
+      - "watch"
+  -
+    apiGroups:
+      - "networking.k8s.io"
+    resources:
+      - "ingresses/status"
+    verbs:
+      - "update"
+---
+apiVersion: "rbac.authorization.k8s.io/v1"
+kind: "ClusterRole"
+metadata:
+  name: "labreserve-traefik"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+rules:
+  -
+    apiGroups:
+      - "networking.k8s.io"
+    resources:
+      - "ingressclasses"
+    verbs:
+      - "get"
+      - "list"
+      - "watch"
+  -
+    apiGroups:
+      - ""
+    resources:
+      - "nodes"
+    verbs:
+      - "get"
+      - "list"
+      - "watch"
+---
+apiVersion: "rbac.authorization.k8s.io/v1"
+kind: "RoleBinding"
+metadata:
+  name: "traefik"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+  namespace: "labreserve"
+subjects:
+  -
+    kind: "ServiceAccount"
+    name: "traefik"
+    namespace: "labreserve"
+roleRef:
+  apiGroup: "rbac.authorization.k8s.io"
+  kind: "Role"
+  name: "traefik"
+---
+apiVersion: "rbac.authorization.k8s.io/v1"
+kind: "ClusterRoleBinding"
+metadata:
+  name: "labreserve-traefik"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+subjects:
+  -
+    kind: "ServiceAccount"
+    name: "traefik"
+    namespace: "labreserve"
+roleRef:
+  apiGroup: "rbac.authorization.k8s.io"
+  kind: "ClusterRole"
+  name: "labreserve-traefik"
+---
+apiVersion: "networking.k8s.io/v1"
+kind: "IngressClass"
+metadata:
+  name: "traefik-labreserve"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+spec:
+  controller: "traefik.io/ingress-controller"
+---
+apiVersion: "v1"
+kind: "Service"
+metadata:
+  name: "traefik"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+  namespace: "labreserve"
+spec:
+  selector:
+    app: "traefik"
+  ports:
+    -
+      name: "http"
+      port: 80
+      targetPort: 8000
+      nodePort: 30080
+    -
+      name: "metrics"
+      port: 9100
+      targetPort: 9100
+  type: "NodePort"
+---
+apiVersion: "apps/v1"
+kind: "Deployment"
+metadata:
+  name: "traefik"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+  namespace: "labreserve"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: "traefik"
+  template:
+    metadata:
+      labels:
+        app: "traefik"
+        component: "ingress"
+        app.kubernetes.io/part-of: "labreserve"
+    spec:
+      automountServiceAccountToken: true
+      terminationGracePeriodSeconds: 30
+      containers:
+        -
+          name: "traefik"
+          image: "traefik:v3.7.17"
+          imagePullPolicy: "IfNotPresent"
+          args:
+            - "--global.checknewversion=false"
+            - "--global.sendanonymoususage=false"
+            - "--entrypoints.web.address=:8000"
+            - "--entrypoints.health.address=:8082"
+            - "--entrypoints.metrics.address=:9100"
+            - "--ping=true"
+            - "--ping.entrypoint=health"
+            - "--metrics.prometheus=true"
+            - "--metrics.prometheus.entrypoint=metrics"
+            - "--providers.kubernetesingress=true"
+            - "--providers.kubernetesingress.namespaces=labreserve"
+            - "--providers.kubernetesingress.ingressclass=traefik-labreserve"
+            - "--providers.kubernetesingress.ingressendpoint.ip=127.0.0.1"
+            - "--providers.file.filename=/etc/traefik/dynamic.yml"
+            - "--log.level=INFO"
+            - "--accesslog=true"
+          ports:
+            -
+              name: "web"
+              containerPort: 8000
+            -
+              name: "health"
+              containerPort: 8082
+            -
+              name: "metrics"
+              containerPort: 9100
+          volumeMounts:
+            -
+              name: "config"
+              mountPath: "/etc/traefik"
+              readOnly: true
+          resources:
+            requests:
+              cpu: "25m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - "ALL"
+          readinessProbe:
+            httpGet:
+              path: "/ping"
+              port: 8082
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: "/ping"
+              port: 8082
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+      volumes:
+        -
+          name: "config"
+          configMap:
+            name: "traefik-config"
+      serviceAccountName: "traefik"

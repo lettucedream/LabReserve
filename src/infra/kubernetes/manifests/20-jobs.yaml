@@ -1,0 +1,474 @@
+apiVersion: "batch/v1"
+kind: "Job"
+metadata:
+  name: "availability-migrate"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+  namespace: "labreserve"
+spec:
+  backoffLimit: 6
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app: "availability-migrate"
+        component: "init"
+        app.kubernetes.io/part-of: "labreserve"
+    spec:
+      restartPolicy: "OnFailure"
+      automountServiceAccountToken: false
+      initContainers:
+        -
+          name: "wait-connection"
+          image: "labreserve-availability"
+          imagePullPolicy: "Never"
+          command:
+            - "python"
+            - "-m"
+            - "labreserve_messaging.wait_ready"
+            - "connection"
+          envFrom:
+            -
+              configMapRef:
+                name: "labreserve-config"
+          env:
+            -
+              name: "DB_NAME"
+              value: "availability_db"
+            -
+              name: "DB_USER"
+              value: "availability_user"
+            -
+              name: "DB_PASSWORD"
+              valueFrom:
+                secretKeyRef:
+                  name: "labreserve-db"
+                  key: "AVAILABILITY_DB_PASSWORD"
+          resources:
+            requests:
+              cpu: "20m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - "ALL"
+      containers:
+        -
+          name: "migrate"
+          image: "labreserve-availability"
+          imagePullPolicy: "Never"
+          command:
+            - "python"
+            - "-m"
+            - "app.bootstrap"
+          envFrom:
+            -
+              configMapRef:
+                name: "labreserve-config"
+          env:
+            -
+              name: "ADMIN_INITIAL_PASSWORD"
+              valueFrom:
+                secretKeyRef:
+                  name: "labreserve-auth"
+                  key: "ADMIN_INITIAL_PASSWORD"
+            -
+              name: "DB_NAME"
+              value: "availability_db"
+            -
+              name: "DB_USER"
+              value: "availability_user"
+            -
+              name: "DB_PASSWORD"
+              valueFrom:
+                secretKeyRef:
+                  name: "labreserve-db"
+                  key: "AVAILABILITY_DB_PASSWORD"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "96Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - "ALL"
+---
+apiVersion: "batch/v1"
+kind: "Job"
+metadata:
+  name: "booking-migrate"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+  namespace: "labreserve"
+spec:
+  backoffLimit: 6
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app: "booking-migrate"
+        component: "init"
+        app.kubernetes.io/part-of: "labreserve"
+    spec:
+      restartPolicy: "OnFailure"
+      automountServiceAccountToken: false
+      initContainers:
+        -
+          name: "wait-connection"
+          image: "labreserve-booking"
+          imagePullPolicy: "Never"
+          command:
+            - "python"
+            - "-m"
+            - "labreserve_messaging.wait_ready"
+            - "connection"
+          envFrom:
+            -
+              configMapRef:
+                name: "labreserve-config"
+          env:
+            -
+              name: "DB_NAME"
+              value: "booking_db"
+            -
+              name: "DB_USER"
+              value: "booking_user"
+            -
+              name: "DB_PASSWORD"
+              valueFrom:
+                secretKeyRef:
+                  name: "labreserve-db"
+                  key: "BOOKING_DB_PASSWORD"
+          resources:
+            requests:
+              cpu: "20m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - "ALL"
+      containers:
+        -
+          name: "migrate"
+          image: "labreserve-booking"
+          imagePullPolicy: "Never"
+          command:
+            - "python"
+            - "-m"
+            - "app.bootstrap"
+          envFrom:
+            -
+              configMapRef:
+                name: "labreserve-config"
+          env:
+            -
+              name: "DB_NAME"
+              value: "booking_db"
+            -
+              name: "DB_USER"
+              value: "booking_user"
+            -
+              name: "DB_PASSWORD"
+              valueFrom:
+                secretKeyRef:
+                  name: "labreserve-db"
+                  key: "BOOKING_DB_PASSWORD"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "96Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - "ALL"
+---
+apiVersion: "batch/v1"
+kind: "Job"
+metadata:
+  name: "waiting-list-migrate"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+  namespace: "labreserve"
+spec:
+  backoffLimit: 6
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app: "waiting-list-migrate"
+        component: "init"
+        app.kubernetes.io/part-of: "labreserve"
+    spec:
+      restartPolicy: "OnFailure"
+      automountServiceAccountToken: false
+      initContainers:
+        -
+          name: "wait-connection"
+          image: "labreserve-waiting-list"
+          imagePullPolicy: "Never"
+          command:
+            - "python"
+            - "-m"
+            - "labreserve_messaging.wait_ready"
+            - "connection"
+          envFrom:
+            -
+              configMapRef:
+                name: "labreserve-config"
+          env:
+            -
+              name: "DB_NAME"
+              value: "waiting_list_db"
+            -
+              name: "DB_USER"
+              value: "waiting_list_user"
+            -
+              name: "DB_PASSWORD"
+              valueFrom:
+                secretKeyRef:
+                  name: "labreserve-db"
+                  key: "WAITING_LIST_DB_PASSWORD"
+          resources:
+            requests:
+              cpu: "20m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - "ALL"
+      containers:
+        -
+          name: "migrate"
+          image: "labreserve-waiting-list"
+          imagePullPolicy: "Never"
+          command:
+            - "python"
+            - "-m"
+            - "app.bootstrap"
+          envFrom:
+            -
+              configMapRef:
+                name: "labreserve-config"
+          env:
+            -
+              name: "DB_NAME"
+              value: "waiting_list_db"
+            -
+              name: "DB_USER"
+              value: "waiting_list_user"
+            -
+              name: "DB_PASSWORD"
+              valueFrom:
+                secretKeyRef:
+                  name: "labreserve-db"
+                  key: "WAITING_LIST_DB_PASSWORD"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "96Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - "ALL"
+---
+apiVersion: "batch/v1"
+kind: "Job"
+metadata:
+  name: "notification-migrate"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+  namespace: "labreserve"
+spec:
+  backoffLimit: 6
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app: "notification-migrate"
+        component: "init"
+        app.kubernetes.io/part-of: "labreserve"
+    spec:
+      restartPolicy: "OnFailure"
+      automountServiceAccountToken: false
+      initContainers:
+        -
+          name: "wait-connection"
+          image: "labreserve-notification"
+          imagePullPolicy: "Never"
+          command:
+            - "python"
+            - "-m"
+            - "labreserve_messaging.wait_ready"
+            - "connection"
+          envFrom:
+            -
+              configMapRef:
+                name: "labreserve-config"
+          env:
+            -
+              name: "DB_NAME"
+              value: "notification_db"
+            -
+              name: "DB_USER"
+              value: "notification_user"
+            -
+              name: "DB_PASSWORD"
+              valueFrom:
+                secretKeyRef:
+                  name: "labreserve-db"
+                  key: "NOTIFICATION_DB_PASSWORD"
+          resources:
+            requests:
+              cpu: "20m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - "ALL"
+      containers:
+        -
+          name: "migrate"
+          image: "labreserve-notification"
+          imagePullPolicy: "Never"
+          command:
+            - "python"
+            - "-m"
+            - "app.bootstrap"
+          envFrom:
+            -
+              configMapRef:
+                name: "labreserve-config"
+          env:
+            -
+              name: "DB_NAME"
+              value: "notification_db"
+            -
+              name: "DB_USER"
+              value: "notification_user"
+            -
+              name: "DB_PASSWORD"
+              valueFrom:
+                secretKeyRef:
+                  name: "labreserve-db"
+                  key: "NOTIFICATION_DB_PASSWORD"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "96Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - "ALL"
+---
+apiVersion: "batch/v1"
+kind: "Job"
+metadata:
+  name: "kafka-topics"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+  namespace: "labreserve"
+spec:
+  backoffLimit: 6
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app: "kafka-topics"
+        component: "init"
+        app.kubernetes.io/part-of: "labreserve"
+    spec:
+      restartPolicy: "OnFailure"
+      automountServiceAccountToken: false
+      containers:
+        -
+          name: "topics"
+          image: "labreserve-booking"
+          imagePullPolicy: "Never"
+          command:
+            - "sh"
+            - "-ec"
+            - "python -m labreserve_messaging.wait_ready broker && python -m labreserve_messaging.init_topics"
+          envFrom:
+            -
+              configMapRef:
+                name: "labreserve-config"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "96Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - "ALL"

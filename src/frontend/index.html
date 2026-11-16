@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#245fa2">
+  <title>LabReserve · Prenotazione laboratori</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.mjs"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Vai al contenuto</a>
+  <div class="app-shell">
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand" href="#availability" aria-label="LabReserve, disponibilità"><strong>LabReserve</strong></a>
+        <div id="account-actions" class="header-actions" hidden>
+          <button id="manage-open" class="secondary-button" type="button" hidden>Amministrazione</button>
+          <button id="user-open" class="user-button" type="button" aria-haspopup="dialog">
+            <span id="user-avatar" class="avatar" aria-hidden="true">F</span>
+            <span><small id="user-role">Utente</small><strong id="user-label"></strong></span>
+            <span class="user-chevron" aria-hidden="true">⌄</span>
+          </button>
+        </div>
+      </div>
+      <nav id="main-nav" class="main-nav" aria-label="Navigazione principale" hidden>
+        <a href="#availability" data-view="availability">Disponibilità</a>
+        <a href="#bookings" data-view="bookings">Le mie prenotazioni <b id="bookings-count" class="nav-count"></b></a>
+        <a href="#waiting" data-view="waiting">Lista d’attesa <b id="waiting-count" class="nav-count"></b></a>
+        <a href="#notifications" data-view="notifications">Notifiche <b id="notification-count" class="nav-count"></b></a>
+      </nav>
+    </header>
+
+    <div class="workspace">
+      <main id="main" tabindex="-1">
+        <section id="auth-view" class="auth-panel" aria-labelledby="auth-title">
+          <h1 id="auth-title">Accedi a LabReserve</h1>
+          <div class="auth-switcher" role="group" aria-label="Accesso e registrazione"><button type="button" data-auth-view="login" aria-pressed="true">Accedi</button><button type="button" data-auth-view="register" aria-pressed="false">Registrati</button><button type="button" data-auth-view="recover" aria-pressed="false">Recupera account</button></div>
+          <form id="login-form" class="auth-form" data-auth-form="login"><label>Username<input name="username" required maxlength="32" autocomplete="username" autocapitalize="none" spellcheck="false"></label><label>Password<input name="password" type="password" required maxlength="128" autocomplete="current-password"></label><button class="primary-button" type="submit">Accedi</button><p class="form-result" role="status"></p></form>
+          <form id="register-form" class="auth-form" data-auth-form="register" hidden><label>Username<input name="username" required minlength="3" maxlength="32" pattern="[a-zA-Z0-9][a-zA-Z0-9._\-]{2,31}" autocomplete="username" autocapitalize="none" spellcheck="false"></label><label>Password<input name="password" type="password" required minlength="8" maxlength="128" autocomplete="new-password"></label><label>Conferma password<input name="confirmation" type="password" required minlength="8" maxlength="128" autocomplete="new-password"></label><p id="register-form-password-hint" class="field-hint">Almeno 8 caratteri, con una maiuscola, un numero e un simbolo speciale.</p><button class="primary-button" type="submit">Crea account</button><p class="form-result" role="status"></p></form>
+          <form id="recover-form" class="auth-form" data-auth-form="recover" hidden><p>Inserisci il codice personale salvato alla registrazione. Se non lo hai più, rivolgiti all’amministratore.</p><label>Codice di recupero<input name="recovery_code" required maxlength="100" autocomplete="off" spellcheck="false"></label><label>Nuovo username (facoltativo)<input name="new_username" minlength="3" maxlength="32" autocomplete="username" autocapitalize="none" spellcheck="false"></label><label>Nuova password<input name="new_password" type="password" required minlength="8" maxlength="128" autocomplete="new-password"></label><label>Conferma nuova password<input name="confirmation" type="password" required minlength="8" maxlength="128" autocomplete="new-password"></label><p id="recover-form-password-hint" class="field-hint">Almeno 8 caratteri, con una maiuscola, un numero e un simbolo speciale.</p><button class="primary-button" type="submit">Reimposta credenziali</button><p class="form-result" role="status"></p></form>
+        </section>
+        <div id="app-content" hidden>
+        <div class="page-heading">
+          <h1 id="page-title">Disponibilità dei laboratori</h1>
+          <div class="sync-area"><span id="sync-status" class="sync-status">Caricamento…</span><button id="refresh" class="icon-button" type="button" aria-label="Aggiorna i dati">↻</button></div>
+        </div>
+        <div id="service-alert" class="alert" role="status" hidden></div>
+
+        <section id="view-availability" class="view" aria-label="Disponibilità dei laboratori">
+          <div class="availability-layout">
+            <div class="availability-main">
+              <div class="section-heading"><h2>Fasce orarie</h2><span class="caption">Orari di Roma</span></div>
+              <div class="filters">
+                <label>Laboratorio<select id="lab-filter"><option value="">Tutti i laboratori</option></select></label>
+                <label>Giorno<input id="date-filter" type="date"></label>
+                <button id="all-dates" class="text-button" type="button">Tutte le date</button>
+              </div>
+              <div id="slots-list" class="slots-list" aria-busy="true"><div class="empty-state">Caricamento delle disponibilità…</div></div>
+            </div>
+            <aside class="day-aside" aria-label="Informazioni utili">
+              <section id="campus-weather" class="weather-card" aria-labelledby="weather-title" aria-busy="true"><h2 id="weather-title">Meteo alla Cittadella</h2><p class="weather-location">Caricamento del meteo…</p></section>
+              <section class="next-booking-card" aria-labelledby="next-booking-title"><h2 id="next-booking-title">Prossima prenotazione</h2><div id="next-booking"></div></section>
+            </aside>
+          </div>
+        </section>
+
+        <section id="view-bookings" class="view" aria-label="Le mie prenotazioni" hidden>
+          <div class="list-toolbar"><label class="check-label"><input id="show-history" type="checkbox"> Mostra storico</label></div>
+          <div id="bookings-list" class="record-list"></div>
+        </section>
+        <section id="view-waiting" class="view" aria-label="Lista d’attesa" hidden>
+          <p class="queue-note">Quando si libera un posto, viene assegnato automaticamente in ordine di arrivo.</p>
+          <div id="waiting-list" class="record-list"></div>
+        </section>
+        <section id="view-notifications" class="view" aria-label="Notifiche" hidden>
+          <div class="list-toolbar"><label class="check-label"><input id="unread-only" type="checkbox"> Solo da leggere</label></div>
+          <div id="notifications-list" class="record-list"></div>
+        </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <dialog id="account-dialog" aria-labelledby="account-title">
+    <div class="dialog-heading"><h2 id="account-title">Il mio account</h2><button class="icon-button" data-close="account-dialog" type="button" aria-label="Chiudi">×</button></div>
+    <form id="account-form"><label>Username<input name="new_username" required minlength="3" maxlength="32" autocomplete="username" autocapitalize="none" spellcheck="false"></label><label>Password attuale<input name="current_password" type="password" required maxlength="128" autocomplete="current-password"></label><label>Nuova password (facoltativa)<input name="new_password" type="password" minlength="8" maxlength="128" autocomplete="new-password"></label><label>Conferma nuova password<input name="confirmation" type="password" maxlength="128" autocomplete="new-password"></label><p id="account-form-password-hint" class="field-hint">Almeno 8 caratteri, con una maiuscola, un numero e un simbolo speciale.</p><div class="dialog-actions"><button id="recovery-new" class="secondary-button" type="button">Nuovo codice di recupero</button><button class="primary-button" type="submit">Salva modifiche</button></div><p class="form-result" role="status"></p></form>
+    <div class="account-logout"><button id="logout" class="text-button" type="button">Esci dall’account</button></div>
+  </dialog>
+  <dialog id="recovery-dialog" aria-labelledby="recovery-title">
+    <div class="dialog-heading"><h2 id="recovery-title">Conserva il codice di recupero</h2></div><p>Ti permette di reimpostare username e password. Salvalo in un posto sicuro: viene mostrato solo adesso e sostituisce il codice precedente.</p><label>Codice personale<input id="recovery-code" class="recovery-code" readonly autocomplete="off" spellcheck="false"></label><div class="dialog-actions"><button id="recovery-saved" class="primary-button" type="button">Ho salvato il codice</button></div>
+  </dialog>
+
+  <dialog id="confirm-dialog" aria-labelledby="confirm-title">
+    <div class="dialog-heading"><h2 id="confirm-title">Annullare la prenotazione?</h2><button class="icon-button" data-close="confirm-dialog" type="button" aria-label="Chiudi">×</button></div>
+    <p id="confirm-description"></p><div class="dialog-actions"><button class="secondary-button" data-close="confirm-dialog" type="button">Torna indietro</button><button id="confirm-action" class="danger-button" type="button">Conferma annullamento</button></div>
+  </dialog>
+
+  <dialog id="manage-dialog" class="manage-dialog" aria-labelledby="manage-title">
+    <div class="dialog-heading"><h2 id="manage-title">Amministrazione</h2><button class="icon-button" data-close="manage-dialog" type="button" aria-label="Chiudi">×</button></div>
+    <div class="auth-switcher admin-switcher" role="group" aria-label="Sezioni amministrazione"><button type="button" data-admin-view="labs" aria-pressed="true">Laboratori</button><button type="button" data-admin-view="users" aria-pressed="false">Utenti</button></div>
+    <div id="admin-labs-panel" class="manage-grid">
+      <form id="lab-form"><h3>Aggiungi un laboratorio</h3><label>Nome<input name="name" required maxlength="120"></label><label>Numero di posti<input name="capacity" required type="number" min="1" max="2147483647" value="1"></label><button class="primary-button" type="submit">Aggiungi laboratorio</button><p class="form-result" id="lab-result" role="status"></p></form>
+      <form id="slot-form"><h3>Aggiungi una fascia</h3><label>Laboratorio<select name="lab" id="slot-lab" required></select></label><label>Inizio · ora di Roma<input name="start" type="datetime-local" required></label><label>Fine · ora di Roma<input name="end" type="datetime-local" required></label><button class="primary-button" type="submit">Aggiungi fascia</button><p class="form-result" id="slot-result" role="status"></p></form>
+      <section class="admin-labs-list" aria-labelledby="admin-labs-title"><h3>Laboratori presenti</h3><p class="field-hint">La rimozione annulla le prenotazioni e le liste d’attesa del laboratorio. Lo storico viene conservato.</p><div id="admin-labs-list" class="record-list"></div></section>
+    </div>
+    <div id="admin-users-panel" class="manage-grid" hidden>
+      <form id="admin-create-form">
+        <h3>Aggiungi utente</h3>
+        <label>Username<input name="username" required minlength="3" maxlength="32" autocomplete="off" autocapitalize="none" spellcheck="false"></label>
+        <label>Password iniziale<input name="password" type="password" required minlength="8" maxlength="128" autocomplete="new-password"></label>
+        <label>Conferma password<input name="confirmation" type="password" required minlength="8" maxlength="128" autocomplete="new-password"></label>
+        <p id="admin-create-form-password-hint" class="field-hint">Almeno 8 caratteri, con una maiuscola, un numero e un simbolo speciale.</p>
+        <button class="primary-button" type="submit">Aggiungi utente</button><p class="form-result" role="status"></p>
+      </form>
+      <form id="admin-reset-form">
+        <h3>Gestisci utente</h3>
+        <label>Utente<select name="account_id" id="admin-users" required><option value="">Caricamento…</option></select></label>
+        <label>Username<input name="new_username" required minlength="3" maxlength="32" autocomplete="off" autocapitalize="none" spellcheck="false"></label>
+        <label>Nuova password utente<input name="new_password" type="password" required minlength="8" maxlength="128" autocomplete="new-password"></label>
+        <p id="admin-reset-form-password-hint" class="field-hint">Almeno 8 caratteri, con una maiuscola, un numero e un simbolo speciale.</p>
+        <label>La tua password amministratore<input name="admin_password" type="password" required maxlength="128" autocomplete="current-password"></label>
+        <div class="admin-user-actions"><button class="primary-button" type="submit">Reimposta account</button><button id="admin-delete-open" class="delete-button" type="button">Elimina utente</button></div>
+        <p class="form-result" role="status"></p>
+      </form>
+    </div>
+  </dialog>
+  <dialog id="lab-delete-dialog" aria-labelledby="lab-delete-title">
+    <div class="dialog-heading"><h2 id="lab-delete-title">Rimuovere il laboratorio?</h2><button class="icon-button" data-close="lab-delete-dialog" type="button" aria-label="Chiudi">×</button></div>
+    <p id="lab-delete-description"></p>
+    <div class="dialog-actions"><button class="secondary-button" data-close="lab-delete-dialog" type="button">Torna indietro</button><button id="lab-delete-action" class="danger-button" type="button">Rimuovi laboratorio</button></div>
+    <p id="lab-delete-result" class="form-result" role="status"></p>
+  </dialog>
+  <dialog id="admin-delete-dialog" aria-labelledby="admin-delete-title">
+    <div class="dialog-heading"><h2 id="admin-delete-title">Elimina utente</h2><button class="icon-button" data-close="admin-delete-dialog" type="button" aria-label="Chiudi">×</button></div>
+    <p id="admin-delete-description"></p>
+    <form id="admin-delete-form">
+      <input type="hidden" name="account_id">
+      <label>La tua password amministratore<input name="admin_password" type="password" required maxlength="128" autocomplete="current-password"></label>
+      <div class="dialog-actions"><button class="secondary-button" data-close="admin-delete-dialog" type="button">Torna indietro</button><button class="danger-button" type="submit">Elimina utente</button></div>
+      <p class="form-result" role="status"></p>
+    </form>
+  </dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <noscript><div class="noscript-message">Attiva JavaScript per consultare le disponibilità e prenotare un posto.</div></noscript>
+</body>
+</html>

@@ -1,0 +1,84 @@
+apiVersion: "v1"
+kind: "Service"
+metadata:
+  name: "frontend"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+  namespace: "labreserve"
+spec:
+  selector:
+    app: "frontend"
+  ports:
+    -
+      name: "http"
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: "apps/v1"
+kind: "Deployment"
+metadata:
+  name: "frontend"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+  namespace: "labreserve"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: "frontend"
+  template:
+    metadata:
+      labels:
+        app: "frontend"
+        component: "web"
+        app.kubernetes.io/part-of: "labreserve"
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      containers:
+        -
+          name: "frontend"
+          image: "labreserve-frontend"
+          imagePullPolicy: "Never"
+          ports:
+            -
+              name: "http"
+              containerPort: 8080
+          volumeMounts:
+            -
+              name: "tmp"
+              mountPath: "/tmp"
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              cpu: "250m"
+              memory: "128Mi"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 101
+            runAsGroup: 101
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - "ALL"
+          readinessProbe:
+            httpGet:
+              path: "/health"
+              port: 8080
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: "/health"
+              port: 8080
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+      volumes:
+        -
+          name: "tmp"
+          emptyDir: {}

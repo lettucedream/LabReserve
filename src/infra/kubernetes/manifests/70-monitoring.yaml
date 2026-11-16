@@ -1,0 +1,208 @@
+apiVersion: "v1"
+kind: "ServiceAccount"
+metadata:
+  name: "prometheus"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+  namespace: "labreserve"
+---
+apiVersion: "rbac.authorization.k8s.io/v1"
+kind: "Role"
+metadata:
+  name: "prometheus"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+  namespace: "labreserve"
+rules:
+  -
+    apiGroups:
+      - ""
+    resources:
+      - "pods"
+    verbs:
+      - "get"
+      - "list"
+      - "watch"
+---
+apiVersion: "rbac.authorization.k8s.io/v1"
+kind: "ClusterRole"
+metadata:
+  name: "labreserve-prometheus"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+rules:
+  -
+    apiGroups:
+      - ""
+    resources:
+      - "nodes"
+    verbs:
+      - "get"
+      - "list"
+      - "watch"
+  -
+    apiGroups:
+      - ""
+    resources:
+      - "nodes/proxy"
+    verbs:
+      - "get"
+---
+apiVersion: "rbac.authorization.k8s.io/v1"
+kind: "RoleBinding"
+metadata:
+  name: "prometheus"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+  namespace: "labreserve"
+subjects:
+  -
+    kind: "ServiceAccount"
+    name: "prometheus"
+    namespace: "labreserve"
+roleRef:
+  apiGroup: "rbac.authorization.k8s.io"
+  kind: "Role"
+  name: "prometheus"
+---
+apiVersion: "rbac.authorization.k8s.io/v1"
+kind: "ClusterRoleBinding"
+metadata:
+  name: "labreserve-prometheus"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+subjects:
+  -
+    kind: "ServiceAccount"
+    name: "prometheus"
+    namespace: "labreserve"
+roleRef:
+  apiGroup: "rbac.authorization.k8s.io"
+  kind: "ClusterRole"
+  name: "labreserve-prometheus"
+---
+apiVersion: "v1"
+kind: "Service"
+metadata:
+  name: "prometheus"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+  namespace: "labreserve"
+spec:
+  selector:
+    app: "prometheus"
+  ports:
+    -
+      name: "http"
+      port: 9090
+      targetPort: 9090
+      nodePort: 30091
+  type: "NodePort"
+---
+apiVersion: "apps/v1"
+kind: "StatefulSet"
+metadata:
+  name: "prometheus"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+  namespace: "labreserve"
+spec:
+  replicas: 1
+  serviceName: "prometheus"
+  selector:
+    matchLabels:
+      app: "prometheus"
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: "Retain"
+    whenScaled: "Retain"
+  template:
+    metadata:
+      labels:
+        app: "prometheus"
+        component: "monitoring"
+        app.kubernetes.io/part-of: "labreserve"
+    spec:
+      serviceAccountName: "prometheus"
+      securityContext:
+        fsGroup: 65534
+      containers:
+        -
+          name: "prometheus"
+          image: "prom/prometheus:v3.13.5@sha256:aafa9d694e6a883c02db516d9f6e5b84e14195f49a2a6456a4cca815edda72b9"
+          imagePullPolicy: "IfNotPresent"
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+            - "--storage.tsdb.retention.time=21d"
+            - "--storage.tsdb.retention.size=3GB"
+          ports:
+            -
+              name: "http"
+              containerPort: 9090
+          volumeMounts:
+            -
+              name: "config"
+              mountPath: "/etc/prometheus"
+              readOnly: true
+            -
+              name: "data"
+              mountPath: "/prometheus"
+            -
+              name: "tmp"
+              mountPath: "/tmp"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "1"
+              memory: "512Mi"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - "ALL"
+          startupProbe:
+            httpGet:
+              path: "/-/ready"
+              port: 9090
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: "/-/ready"
+              port: 9090
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: "/-/healthy"
+              port: 9090
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+      volumes:
+        -
+          name: "config"
+          configMap:
+            name: "prometheus-config"
+        -
+          name: "tmp"
+          emptyDir: {}
+  volumeClaimTemplates:
+    -
+      metadata:
+        name: "data"
+      spec:
+        accessModes:
+          - "ReadWriteOnce"
+        storageClassName: "standard"
+        resources:
+          requests:
+            storage: "4Gi"

@@ -1,0 +1,197 @@
+rule_files:
+  - predictors.yml
+evaluation_interval: 10s
+fuzzy_compare: true
+
+# Numerical fixtures are only loaded by promtool, never by the running application.
+tests:
+  - name: linear trends predict evaluation time plus sixty seconds
+    interval: 10s
+    input_series:
+      - series: labreserve:occupancy_ratio
+        values: '0.2+0.01x36'
+      - series: 'labreserve:container_cpu_cores:rate1m{service="availability"}'
+        values: '0.1+0.001x36'
+      - series: 'labreserve:container_cpu_cores:rate1m{service="booking"}'
+        values: '0.1+0.001x36'
+      - series: 'labreserve:container_cpu_cores:rate1m{service="waiting-list"}'
+        values: '0.1+0.001x36'
+      - series: 'labreserve:container_cpu_cores:rate1m{service="notification"}'
+        values: '0.1+0.001x36'
+      - series: 'labreserve:container_cpu_cores:rate1m{service="frontend"}'
+        values: '100+0x36'
+    promql_expr_test:
+      - expr: abs(labreserve:occupancy_ratio:predict60s - 0.62) < bool 1e-9
+        eval_time: 6m
+        exp_samples:
+          - labels: '{}'
+            value: 1
+      - expr: abs(labreserve:api_cpu_cores:rate1m - 0.544) < bool 1e-9
+        eval_time: 6m
+        exp_samples:
+          - labels: '{}'
+            value: 1
+      - expr: abs(labreserve:api_cpu_cores:predict60s - 0.568) < bool 1e-9
+        eval_time: 6m
+        exp_samples:
+          - labels: '{}'
+            value: 1
+
+  - name: constant occupancy and CPU remain predictable without requests
+    interval: 10s
+    input_series:
+      - series: labreserve:occupancy_ratio
+        values: '0+0x36'
+      - series: 'labreserve:container_cpu_cores:rate1m{service="availability"}'
+        values: '0.1+0x36'
+      - series: 'labreserve:container_cpu_cores:rate1m{service="booking"}'
+        values: '0.1+0x36'
+      - series: 'labreserve:container_cpu_cores:rate1m{service="waiting-list"}'
+        values: '0.1+0x36'
+      - series: 'labreserve:container_cpu_cores:rate1m{service="notification"}'
+        values: '0.1+0x36'
+    promql_expr_test:
+      - expr: labreserve:occupancy_ratio:predict60s
+        eval_time: 6m
+        exp_samples:
+          - labels: labreserve:occupancy_ratio:predict60s
+            value: 0
+      - expr: abs(labreserve:api_cpu_cores:predict60s - 0.4) < bool 1e-9
+        eval_time: 6m
+        exp_samples:
+          - labels: '{}'
+            value: 1
+
+  - name: occupancy forecast cannot exceed full capacity
+    interval: 10s
+    input_series:
+      - series: labreserve:occupancy_ratio
+        values: '0.25+0.02x36'
+    promql_expr_test:
+      - expr: labreserve:occupancy_ratio:predict60s
+        eval_time: 6m
+        exp_samples:
+          - labels: labreserve:occupancy_ratio:predict60s
+            value: 1
+
+  - name: declining forecasts are bounded at zero
+    interval: 10s
+    input_series:
+      - series: labreserve:occupancy_ratio
+        values: '0.37-0.01x36'
+      - series: 'labreserve:container_cpu_cores:rate1m{service="availability"}'
+        values: '0.41-0.01x36'
+      - series: 'labreserve:container_cpu_cores:rate1m{service="booking"}'
+        values: '0.41-0.01x36'
+      - series: 'labreserve:container_cpu_cores:rate1m{service="waiting-list"}'
+        values: '0.41-0.01x36'
+      - series: 'labreserve:container_cpu_cores:rate1m{service="notification"}'
+        values: '0.41-0.01x36'
+    promql_expr_test:
+      - expr: labreserve:occupancy_ratio:predict60s
+        eval_time: 6m
+        exp_samples:
+          - labels: labreserve:occupancy_ratio:predict60s
+            value: 0
+      - expr: labreserve:api_cpu_cores:predict60s
+        eval_time: 6m
+        exp_samples:
+          - labels: labreserve:api_cpu_cores:predict60s
+            value: 0
+
+  - name: partial CPU is not presented as the four API total
+    interval: 10s
+    input_series:
+      - series: 'labreserve:container_cpu_cores:rate1m{service="availability"}'
+        values: '0.1+0x36'
+      - series: 'labreserve:container_cpu_cores:rate1m{service="booking"}'
+        values: '0.1+0x36'
+      - series: 'labreserve:container_cpu_cores:rate1m{service="waiting-list"}'
+        values: '0.1+0x36'
+    promql_expr_test:
+      - expr: labreserve:api_cpu_cores:rate1m
+        eval_time: 6m
+        exp_samples: []
+      - expr: labreserve:api_cpu_cores:predict60s
+        eval_time: 6m
+        exp_samples: []
+
+  - name: a CPU role older than twenty-five seconds invalidates the forecast
+    interval: 10s
+    input_series:
+      - series: 'labreserve:container_cpu_cores:rate1m{service="availability"}'
+        values: '0.1+0x36'
+      - series: 'labreserve:container_cpu_cores:rate1m{service="booking"}'
+        values: '0.1+0x36'
+      - series: 'labreserve:container_cpu_cores:rate1m{service="waiting-list"}'
+        values: '0.1+0x36'
+      - series: 'labreserve:container_cpu_cores:rate1m{service="notification"}'
+        values: '0.1+0x30 _ _ _ _ _ _'
+    promql_expr_test:
+      - expr: labreserve:api_cpu_cores:rate1m
+        eval_time: 6m
+        exp_samples: []
+      - expr: labreserve:api_cpu_cores:predict60s
+        eval_time: 6m
+        exp_samples: []
+
+  - name: old occupancy does not produce an extrapolated forecast
+    interval: 10s
+    input_series:
+      - series: labreserve:occupancy_ratio
+        values: '0.4+0x30 _ _ _ _ _ _'
+    promql_expr_test:
+      - expr: labreserve:occupancy_ratio:predict60s
+        eval_time: 6m
+        exp_samples: []
+
+  - name: undefined occupancy is omitted instead of replaced with zero
+    interval: 10s
+    input_series:
+      - series: labreserve:occupancy_ratio
+        values: '0.4+0x35 NaN'
+    promql_expr_test:
+      - expr: labreserve:occupancy_ratio:predict60s
+        eval_time: 6m
+        exp_samples: []
+
+  - name: infinite CPU is not emitted as a prediction
+    interval: 10s
+    input_series:
+      - series: 'labreserve:container_cpu_cores:rate1m{service="availability"}'
+        values: '0.1+0x36'
+      - series: 'labreserve:container_cpu_cores:rate1m{service="booking"}'
+        values: '0.1+0x36'
+      - series: 'labreserve:container_cpu_cores:rate1m{service="waiting-list"}'
+        values: '0.1+0x36'
+      - series: 'labreserve:container_cpu_cores:rate1m{service="notification"}'
+        values: '0.1+0x35 +Inf'
+    promql_expr_test:
+      - expr: labreserve:api_cpu_cores:predict60s
+        eval_time: 6m
+        exp_samples: []
+
+  - name: two samples suffice and a single sample is insufficient
+    interval: 10s
+    input_series:
+      - series: labreserve:occupancy_ratio
+        values: '0.4 0.41'
+    promql_expr_test:
+      - expr: labreserve:occupancy_ratio:predict60s
+        eval_time: 0s
+        exp_samples: []
+      - expr: abs(labreserve:occupancy_ratio:predict60s - 0.47) < bool 1e-9
+        eval_time: 10s
+        exp_samples:
+          - labels: '{}'
+            value: 1
+
+  - name: invalid current occupancy cannot be hidden by output clipping
+    interval: 10s
+    input_series:
+      - series: labreserve:occupancy_ratio
+        values: '1.2+0x36'
+    promql_expr_test:
+      - expr: labreserve:occupancy_ratio:predict60s
+        eval_time: 6m
+        exp_samples: []

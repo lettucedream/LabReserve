@@ -1,0 +1,56 @@
+groups:
+  - name: labreserve
+    rules:
+      - record: labreserve:business_requests_per_second:rate1m
+        expr: >-
+          sum by (service) (rate(labreserve_http_requests_total{
+            route!~"/health|/ready|/metrics|/docs.*|/redoc|/openapi.json"
+          }[1m]))
+      - record: labreserve:http_p95_seconds:rate5m
+        expr: >-
+          histogram_quantile(0.95, sum by (service, le) (
+            rate(labreserve_http_request_duration_seconds_bucket{
+              route!~"/health|/ready|/metrics|/docs.*|/redoc|/openapi.json"
+            }[5m])
+          ))
+      - record: labreserve:lab_occupancy_ratio
+        expr: >-
+          max by (lab_id) (labreserve_seats_allocated)
+          / max by (lab_id) (labreserve_seats_capacity)
+      - record: labreserve:occupancy_ratio
+        expr: >-
+          sum(max by (lab_id) (labreserve_seats_allocated))
+          / sum(max by (lab_id) (labreserve_seats_capacity))
+      - record: labreserve:container_cpu_cores:rate1m
+        expr: >-
+          sum by (service) (
+            rate(container_cpu_usage_seconds_total{job=~"cadvisor|kubernetes-cadvisor",cpu="total"}[1m])
+            and on (id) (container_last_seen{job=~"cadvisor|kubernetes-cadvisor"} > time() - 20)
+          )
+      - record: labreserve:container_memory_working_set_bytes
+        expr: >-
+          sum by (service) (
+            container_memory_working_set_bytes{job=~"cadvisor|kubernetes-cadvisor"}
+            and on (id) (container_last_seen{job=~"cadvisor|kubernetes-cadvisor"} > time() - 20)
+          )
+      - alert: LabReserveTargetDown
+        expr: up{job=~"availability|booking|waiting-list|notification|cadvisor|kubernetes-cadvisor"} == 0
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Target {{ $labels.job }} non raggiungibile"
+      - alert: LabReserveWorkerStale
+        expr: time() - labreserve_worker_last_seen_timestamp_seconds > 45
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Worker {{ $labels.service }} senza heartbeat recente"
+      - alert: LabReserveOutboxStalled
+        expr: labreserve_outbox_oldest_age_seconds > 30
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Outbox {{ $labels.service }} ferma da oltre 30 secondi"

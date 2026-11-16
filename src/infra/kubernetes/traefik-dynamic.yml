@@ -1,0 +1,9 @@
+http:
+  middlewares:
+    strip-api:
+      stripPrefix:
+        prefixes:
+          - /api/availability
+          - /api/booking
+          - /api/waiting-list
+          - /api/notification

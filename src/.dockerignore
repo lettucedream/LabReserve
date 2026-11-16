@@ -1,0 +1,14 @@
+.git/
+.env
+.env.*
+!.env.example
+tmp/
+.data/
+.tools/
+output/release/
+output/*.kubeconfig
+output/*images.tar
+**/__pycache__/
+**/*.py[cod]
+**/.venv/
+**/.pytest_cache/

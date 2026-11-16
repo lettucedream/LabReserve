@@ -1,0 +1,70 @@
+apiVersion: "networking.k8s.io/v1"
+kind: "Ingress"
+metadata:
+  name: "labreserve-api"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+  namespace: "labreserve"
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: "strip-api@file"
+    traefik.ingress.kubernetes.io/router.entrypoints: "web"
+spec:
+  ingressClassName: "traefik-labreserve"
+  rules:
+    -
+      http:
+        paths:
+          -
+            path: "/api/availability"
+            pathType: "Prefix"
+            backend:
+              service:
+                name: "availability"
+                port:
+                  number: 8000
+          -
+            path: "/api/booking"
+            pathType: "Prefix"
+            backend:
+              service:
+                name: "booking"
+                port:
+                  number: 8000
+          -
+            path: "/api/waiting-list"
+            pathType: "Prefix"
+            backend:
+              service:
+                name: "waiting-list"
+                port:
+                  number: 8000
+          -
+            path: "/api/notification"
+            pathType: "Prefix"
+            backend:
+              service:
+                name: "notification"
+                port:
+                  number: 8000
+---
+apiVersion: "networking.k8s.io/v1"
+kind: "Ingress"
+metadata:
+  name: "labreserve-web"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+  namespace: "labreserve"
+spec:
+  ingressClassName: "traefik-labreserve"
+  rules:
+    -
+      http:
+        paths:
+          -
+            path: "/"
+            pathType: "Prefix"
+            backend:
+              service:
+                name: "frontend"
+                port:
+                  number: 8080

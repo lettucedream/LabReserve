@@ -1,0 +1,20 @@
+apiVersion: "v1"
+kind: "ConfigMap"
+metadata:
+  name: "labreserve-config"
+  labels:
+    app.kubernetes.io/part-of: "labreserve"
+  namespace: "labreserve"
+data:
+  DB_HOST: "postgres"
+  DB_PORT: "5432"
+  KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+  BOOKING_TIMEOUT_SECONDS: "60"
+  AUTH_SERVICE_URL: "http://availability:8000"
+  AUTH_COOKIE_SECURE: "false"
+  WEATHER_LATITUDE: "37.5253"
+  WEATHER_LONGITUDE: "15.0722"
+  WEATHER_TIMEOUT_SECONDS: "4"
+  WEATHER_CACHE_SECONDS: "600"
+  WEATHER_MAX_AGE_SECONDS: "3600"
+  WEATHER_RETRY_SECONDS: "60"

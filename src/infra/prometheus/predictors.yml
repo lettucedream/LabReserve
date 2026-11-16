@@ -1,0 +1,30 @@
+groups:
+  - name: labreserve-predictions
+    rules:
+      # Aggregate the four API roles before fitting their CPU trend.
+      - record: labreserve:api_cpu_cores:rate1m
+        expr: >-
+          ((sum(labreserve:container_cpu_cores:rate1m{
+            service=~"availability|booking|waiting-list|notification"
+          }) >= 0) < +Inf)
+          and (count(labreserve:container_cpu_cores:rate1m{
+            service=~"availability|booking|waiting-list|notification"
+          }) == 4)
+          and (time() - min(timestamp(labreserve:container_cpu_cores:rate1m{
+            service=~"availability|booking|waiting-list|notification"
+          })) <= 25)
+
+      # predict_linear fits the last five minutes and predicts evaluation time + 60 s.
+      # Filters retain valid, recent sources and suppress non-finite predictions.
+      - record: labreserve:occupancy_ratio:predict60s
+        expr: >-
+          (clamp(predict_linear(labreserve:occupancy_ratio[5m], 60), 0, 1) >= 0)
+          and (labreserve:occupancy_ratio >= 0)
+          and (labreserve:occupancy_ratio <= 1)
+          and (time() - timestamp(labreserve:occupancy_ratio) <= 25)
+
+      - record: labreserve:api_cpu_cores:predict60s
+        expr: >-
+          (clamp_min(predict_linear(labreserve:api_cpu_cores:rate1m[5m], 60), 0) < +Inf)
+          and (labreserve:api_cpu_cores:rate1m >= 0)
+          and (time() - timestamp(labreserve:api_cpu_cores:rate1m) <= 25)
